@@ -43,9 +43,9 @@ Then, we'll configure it automatically
 ```bash
 ./configure  \
         --prefix=/usr/local \
-        --exec-prefix=/usr/local \   
+        --exec-prefix=/usr/local \
         --with-fuse=external \
-        --sbindir=/usr/local/bin \  
+        --sbindir=/usr/local/bin \
         --bindir=/usr/local/bin
 ```
 
