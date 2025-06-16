@@ -1,115 +1,77 @@
-# NTFS-MacOS-13-26
+# NTFS-MacOS-13-26 UPDATED
 How to write on an NTFS drive on macOS 15 Sequoia and macOS 26 Tahoe, for Apple Silicon, without a kernel module.
 
-I figured this out today and it works on my MacBook Air M2 which is on MacOS 26 Tahoe.
+If you used my old tutorial, check the other file in the repo.
 
-First you need Homebrew. I'll let you find a tutorial to install it.
+This is an update, a better way to do this, thanks to the people at MacOS-Fuse-T
 
-Then we need some dependencies, run into the terminal:
+First we need to install some dependencies with homebrew, if you don't have it, check how to install it on https://brew.sh
 
-```bash
-brew install autoconf automake libtool libgcrypt pkg-config gettext bash mounty
-```
-
-Restart your shell so that your shell use the updated bash, run bash and see if it's 5.0 version, else make sure homebrew binaries are first in your PATH.
-
-Then we need fuse-t, a version of macFuse without any kernel module.
-
-You can download it here: https://www.fuse-t.org/downloads
-
-Or install it with brew:
+Let's run these command in the terminal, it will first add the repository needed to install fuse-t, then it will install the dependencies to build ntfs-3G, and it will install fuse-t, which is fuse without the need of a kernel driver. Their site's at https://www.fuse-t.org
 
 ```bash
 brew tap macos-fuse-t/homebrew-cask
-
-brew install fuse-t
 ```
 
-Then make a symlink (not sure if necessary but do it anyways):
-
 ```bash
-sudo ln -s /usr/local/lib/libfuse-t.dylib /usr/local/lib/libfuse.2.dylib
+brew install mounty fuse-t git automake autoconf libtool libgcrypt pkg-config gnutls
 ```
 
-
-Now go into a directory of your choice and run
+Now go into a directory of your choice and run this command, to clone ntfs-3g, the ntfs driver.
 
 ```bash
-git clone https://github.com/tuxera/ntfs-3g
+git clone https://github.com/macos-fuse-t/ntfs-3g
 
 cd ntfs-3g
 ```
 
-We'll need to trick pkg-cache, so run 
+We'll need to define some flags for it to install properly
 
 ```bash
-sudo nano /usr/local/lib/pkgconfig/fuse.pc
+export CPPFLAGS="-I/usr/local/include/fuse"
+export LDFLAGS="-L/usr/local/lib -lfuse-t -Wl,-rpath,/usr/local/lib"
 ```
 
-Inside the file, write this:
+Now run this command, preparing the configuration files
 
 ```bash
-prefix=/usr/local
-exec_prefix=${prefix}
-libdir=${exec_prefix}/lib
-includedir=${prefix}/include
-
-Name: fuse
-Description: Compatibility wrapper that maps fuse-t -> -lfuse-t
-Version: 2.9.9          # anything ≥ 2.6.0 will satisfy the test
-Libs:   -F/Library/Frameworks -framework fuse_t -Wl,-rpath,/Library/Frameworks
-Cflags: -I/Library/Frameworks/fuse_t.framework/Headers -D_FILE_OFFSET_BITS=64
+./autogen.sh
 ```
 
-Now run :
+Then, we'll configure it automatically
 
 ```bash
-hash -r
+./configure  \
+        --prefix=/usr/local \
+        --exec-prefix=/usr/local \   
+        --with-fuse=external \
+        --sbindir=/usr/local/bin \  
+        --bindir=/usr/local/bin
+```
 
-autoreconf -fvi
+Now we just need to build/compile it
 
-./configure --prefix=/usr/local --with-fuse=external
+```bash
+make -j"$(sysctl -n hw.ncpu)"
+```
 
-make -j"$(sysctl -n hw.ncpu)" rootlibdir=/usr/local/lib rootbindir=/usr/local/bin
+And lastly, we install it
 
-sudo make install rootlibdir=/usr/local/lib rootbindir=/usr/local/bin
-
-echo user_allow_other | sudo tee /etc/fuse.conf
-
-# Just in case
-
-sudo install_name_tool -add_rpath /Library/Frameworks /usr/local/bin/ntfs-3g
-sudo install_name_tool -add_rpath /Library/Frameworks /usr/local/bin/lowntfs-3g
-sudo install_name_tool -add_rpath /Library/Frameworks /usr/local/bin/ntfs-3g.probe
+```bash
+sudo make install
 ```
 
 Now ntfs-3g should be installed.
 
-You have two options:
+Now :
 
-1 - Mount manually your NTFS partition:
-
-If your NTFS partition is /dev/disk4s3 (check with Disk Utility), do:
-
-```bash
-sudo umount /dev/disk4s3
-
-sudo mkdir /Volumes/NTFS
-
-sudo chown $(id -u) /Volumes/NTFS
-
-sudo /usr/local/bin/ntfs-3g /dev/disk4s3 /Volumes/NTFS -o local -o allow_other -o auto_xattr -o big_writes
-```
-
-Now go to finder and you should see a new volume called "fuse-t" containing a folder called "NTFS". This is your NTFS drive and you can write in it
-
-2 (preferred) - Mount using Mounty
+Mount your drive using Mounty
 
 We installed Mounty, launch it and agree.
 
 Plug your NTFS drive AFTER LAUNCHING MOUNTY and in the toolbar click on the Mounty icon, then you should see "Re-mount", click on it, then click on "mount automatically". 
 
-Now go to finder and you should see a new volume called "fuse-t" containing a folder. This folder is your NTFS drive and you can write in it
+Now go to finder and you should see a new volume with a computer icon called "fuse-t" containing a folder. This folder is your NTFS drive and you can write in it
 
 Now, when you'll plug your drive and Mounty is launched, it will automatically mount your drive.
 
